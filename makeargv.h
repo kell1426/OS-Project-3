@@ -8,7 +8,7 @@ typedef struct node{
 	char inputFileLocation[1024];
 	char outputFileLocation[1024];
 	char outputDirectoryPath[1024];
-	char
+	int isLeafNode;
 	int num_children;
 	char childName[50][1024];
 	char parentName[1024];
@@ -67,26 +67,6 @@ int makeargv(const char*s, const char *delimiters, char ***argvp){
 	return numtokens;
 }
 
-char *trimwhitespace(char *str)
-{
-  char *end;
-  // Trim leading space
-  while(isspace((unsigned char)*str)) str++;
-
-  if(*str == 0)  // All spaces?
-    return str;
-
-  // Trim trailing space
-  end = str + strlen(str) - 1;
-
-  while(end > str && isspace((unsigned char)*end)) end--;
-
-  // Write new null terminator
-  *(end+1) = 0;
-
-  return str;
-}
-
 node_t* findnode(node_t* start, char* tobefound){
 	//Find the node in question
 		node_t* temp = start;
@@ -96,8 +76,24 @@ node_t* findnode(node_t* start, char* tobefound){
 			}
 
 			temp++;
-		} while(temp->id!=NULL);
+		} while(temp->name!=NULL);
 		return NULL;
 }
 
+void printgraph(node_t* n)
+{
+	int i = 0;
+	while(n[i].name[0] != '\0')
+	{
+		printf("Node name is: %s\n", n[i].name);
+		printf("Node textfile name is: %s\n", n[i].textFileName);
+		printf("Node's parent name is: %s\n", n[i].parentName);
+		printf("Node has %d children\n", n[i].num_children);
+		int j;
+		for(j = 0; j < n[i].num_children; j++)
+		{
+			printf("Child %d is: %s\n", j, n[j].childName);
+		}
+		i++;
+	}
 }
