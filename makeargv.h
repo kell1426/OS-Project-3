@@ -4,18 +4,16 @@
 // Structure for every node
 typedef struct node{
 	char name[1024];
-	char prog[1024];
-	char input[50][1024];
-	char output[1024];
-	int children[10];
+	char textFileName[1024];
+	char inputFileLocation[1024];
+	char outputFileLocation[1024];
+	char outputDirectoryPath[1024];
+	char
 	int num_children;
-	int status;
-	pid_t pid;
-	int id;
+	char childName[50][1024];
+	char parentName[1024];
 }node_t;
 
-FILE* file_open(char* file_name);
-char* read_line(char* buffer, FILE* fp);
 int makeargv(const char*s, const char *delimiters, char ***argvp){
 
 	int error;
@@ -89,8 +87,6 @@ char *trimwhitespace(char *str)
   return str;
 }
 
-
-
 node_t* findnode(node_t* start, char* tobefound){
 	//Find the node in question
 		node_t* temp = start;
@@ -104,51 +100,4 @@ node_t* findnode(node_t* start, char* tobefound){
 		return NULL;
 }
 
-node_t* findNodeByID(node_t* start, int tobefound){
-	//Find the node in question
-		node_t* temp = start;
-		do {
-			if( temp->id == tobefound){
-				return temp;
-			}
-
-			temp++;
-		} while(temp->id!=NULL);
-
-		return NULL;
-}
-
-
-char* prepend(char* s, const char* t)
-{
-    size_t len = strlen(t);
-    size_t i;
-
-    memmove(s + len, s, strlen(s) + 1);
-
-    for (i = 0; i < len; ++i)
-    {
-        s[i] = t[i];
-    }
-    return s;
-}
-
-void printgraph(node_t* mainnodes, int num){
-			int p;
-				for (p = 0; p < num; p++){
-					if(mainnodes[p].num_children==0){
-						printf("%s","\n Leaf Node : ");
-						printf("%s",mainnodes[p].name);
-					}
-					else{
-						printf("\n Non-Leaf Nodes %s",mainnodes[p].name);
-						printf("\n Listing their children: ");
-						int x;
-						for(x=0;x<mainnodes[p].num_children;x++){
-							printf("\n %d ",mainnodes[p].children[x]);
-							printf(" %s ",(findNodeByID(mainnodes, mainnodes[p].children[x])->name));
-						}
-
-					}
-				}
 }
