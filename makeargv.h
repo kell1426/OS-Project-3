@@ -92,7 +92,7 @@ void printgraph(node_t* n)
 		int j;
 		for(j = 0; j < n[i].num_children; j++)
 		{
-			printf("Child %d is: %s\n", j, n[j].childName);
+			printf("Child %d is: %s\n", j, n[i].childName[j]);
 		}
 		i++;
 	}
