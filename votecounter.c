@@ -91,9 +91,9 @@ void parseInputLine(char *buf, node_t* n, int line)
 void DAGCreator(node_t* n, char *filename)
 {
   FILE *DAG = fopen(filename, "r");
-  char *buf = malloc(50);
+  char *buf = malloc(255);
   int line = 1;
-  while(fgets(buf, 50, DAG) != NULL)
+  while(fgets(buf, 255, DAG) != NULL)
   {
     if(strcmp(buf, "\n") != 0)
     {
