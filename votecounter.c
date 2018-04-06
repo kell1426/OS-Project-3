@@ -11,16 +11,25 @@
 #include "makeargv.h"
 #include <sys/wait.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <dirent.h>
+#include <pthread.h>
+#include <semaphore.h>
 
 #define MAX_NODES 100
+
+pthread_mutex_t* listLock;
+sem_t* listSem;
 
 void inputDirectoryCreator(node_t* n, char *inputDirectory);
 void outputDirectoryCreator(node_t* n, char *outputDirectory);
 void DAGCreator(node_t* n, char *filename);
+int initializeQueue(list_t* head, node_t* n);
 // int unlink_cb(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf);
 // int rmrf(char *path);
 void parseInputLine(char *buf, node_t* n, int line);
+void threadFunction(void* arg);
+list_t* dequeue(list_t* head);
 
 // int unlink_cb(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf)
 // {
@@ -122,11 +131,10 @@ void outputDirectoryCreator(node_t* n, char *outputDirectory)
   strcat(n[0].outputDirectoryPath, n[0].name);
   strcpy(n[0].outputFileLocation, n[0].outputDirectoryPath);
   strcat(n[0].outputFileLocation, "/");
-  strcat(n[0].outputFileLocation, n[0].name);
-  strcat(n[0].outputFileLocation, ".txt");
+  strcat(n[0].outputFileLocation, n[0].textFileName);
   n[0].isLeafNode = 0;
   int i = 1;
-  while(n[i].name != NULL)
+  while(n[i].name[0] != '\0')
   {
     node_t* temp = findnode(n, n[i].parentName);
     strcpy(n[i].outputDirectoryPath, temp->outputDirectoryPath);
@@ -134,8 +142,7 @@ void outputDirectoryCreator(node_t* n, char *outputDirectory)
     strcat(n[i].outputDirectoryPath, n[i].name);
     strcpy(n[i].outputFileLocation, n[i].outputDirectoryPath);
     strcat(n[i].outputFileLocation, "/");
-    strcat(n[i].outputFileLocation, n[i].name);
-    strcat(n[i].outputFileLocation, ".txt");
+    strcat(n[i].outputFileLocation, n[i].textFileName);
     if(n[i].num_children == 0)
     {
       n[i].isLeafNode = 1;
@@ -146,23 +153,75 @@ void outputDirectoryCreator(node_t* n, char *outputDirectory)
     }
     i++;
   }
+  i = 0;
+  mkdir(outputDirectory, 0750);
+  while(n[i].name[0] != '\0')
+  {
+    strcpy(n[i].logFile, outputDirectory);
+    strcat(n[i].logFile, "/log.txt");
+    char *path;
+    sprintf(path, "%s", n[i].outputDirectoryPath);
+    int direrr = mkdir(path, 0750);
+    if(direrr == -1)
+    {
+      printf("Error is: %s", strerror(errno));
+    }
+    i++;
+  }
 }
 
 void inputDirectoryCreator(node_t* n, char *inputDirectory)
 {
   int i = 1;
-  while(n[i].name != NULL)
+  while(n[i].name[0] != '\0')
   {
     if(n[i].isLeafNode == 1)
     {
       strcpy(n[i].inputFileLocation, inputDirectory);
       strcat(n[i].inputFileLocation, "/");
-      strcat(n[i].inputFileLocation, n[i].name);
-      strcat(n[i].inputFileLocation, ".txt");
+      strcat(n[i].inputFileLocation, n[i].textFileName);
     }
+    i++;
   }
 }
 
+int initializeQueue(list_t* head, node_t* n)
+{
+  int i = 1;
+  int numberOfFiles = 0;
+  while(n[i].name[0] != '\0')
+  {
+    if(n[i].isLeafNode == 1)
+    {
+      list_t *newNode = malloc(sizeof(list_t));
+      newNode->next = head->next;
+      strcpy(newNode->filename, n[i].inputFileLocation);
+      head->next = newNode;
+      numberOfFiles++;
+    }
+    i++;
+  }
+  return numberOfFiles;
+}
+
+list_t* dequeue(list_t* head)
+{
+  list_t* temp = head->next;
+  head->next = temp->next;
+  temp->next = NULL;
+  return temp;
+}
+
+void threadFunction(void* arg)
+{
+  struct threadArgs *realArgs = arg;
+  sem_wait(&listSem);
+  pthread_mutex_lock(&listLock);
+  list_t* listNode = dequeue(realArgs->head);
+  pthread_mutex_unlock(&listLock);
+  sem_post(&listSem);
+  return 0;
+}
 
 int main(int argc, char **argv){
   struct node* mainnodes=(struct node*)malloc(sizeof(struct node)*MAX_NODES);
@@ -171,8 +230,47 @@ int main(int argc, char **argv){
 		printf("Usage: %s Program\n", argv[0]);
 		return -1;
 	}
+
   DAGCreator(mainnodes, argv[1]);
-  printgraph(mainnodes);
-  //outputDirectoryCreator(mainnodes, argv[3]);
-  //inputDirectoryCreator(mainnodes, argv[2]);
+  outputDirectoryCreator(mainnodes, argv[3]);
+  inputDirectoryCreator(mainnodes, argv[2]);
+  //printgraph(mainnodes);
+  list_t* head = NULL;
+  head = malloc(sizeof(list_t));
+  head->next = NULL;
+  int numOfThreads = initializeQueue(head, mainnodes);
+  char logFile[1024];
+  strcpy(logFile, argv[3]);
+  strcat(logFile, "/log.txt");
+  FILE *logFP = fopen(logFile, "w");
+  fclose(logFP);
+  //printList(head);
+  int i = 0;
+  while(mainnodes[i].name[0] != '\0')
+  {
+    if(pthread_mutex_init(&mainnodes[i].lock, NULL) != 0)
+    {
+      printf("Mutex init failed\n");
+      return 1;
+    }
+    i++;
+  }
+  if(pthread_mutex_init(&listLock, NULL) != 0)
+  {
+    printf("Mutex init failed\n");
+    return 1;
+  }
+  sem_init(&listSem, 0, 1);
+  pthread_t threads[numOfThreads];
+  for(i = 0; i < numOfThreads; i++)
+  {
+    struct threadArgs* args = malloc(sizeof(struct threadArgs));
+    args->head = head;
+    args->n = mainnodes;
+    pthread_create(&threads[i], NULL, threadFunction, (void*) args);
+  }
+  for(i = 0; i < numOfThreads; i++)
+  {
+    pthread_join(threads[i], NULL);
+  }
 }

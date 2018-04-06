@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
 // Structure for every node
 typedef struct node{
 	char name[1024];
@@ -8,11 +9,23 @@ typedef struct node{
 	char inputFileLocation[1024];
 	char outputFileLocation[1024];
 	char outputDirectoryPath[1024];
+	char logFile[1024];
 	int isLeafNode;
 	int num_children;
 	char childName[50][1024];
 	char parentName[1024];
+	pthread_mutex_t* lock;
 }node_t;
+
+typedef struct list{
+	char filename[1024];
+	struct list *next;
+} list_t;
+
+struct threadArgs{
+	list_t* head;
+	node_t* n;
+};
 
 int makeargv(const char*s, const char *delimiters, char ***argvp){
 
@@ -87,6 +100,12 @@ void printgraph(node_t* n)
 	{
 		printf("Node name is: %s\n", n[i].name);
 		printf("Node textfile name is: %s\n", n[i].textFileName);
+		printf("Node output directory path is: %s\n", n[i].outputDirectoryPath);
+		printf("Node output file path is: %s\n", n[i].outputFileLocation);
+		if(n[i].isLeafNode == 1)
+		{
+			printf("Node is a leaf node. Input file path is: %s\n", n[i].inputFileLocation);
+		}
 		printf("Node's parent name is: %s\n", n[i].parentName);
 		printf("Node has %d children\n", n[i].num_children);
 		int j;
@@ -95,5 +114,15 @@ void printgraph(node_t* n)
 			printf("Child %d is: %s\n", j, n[i].childName[j]);
 		}
 		i++;
+	}
+}
+
+void printList(list_t *head)
+{
+	list_t *current = head->next;
+	while(current != NULL)
+	{
+		printf("Leaf Node input file location is: %s\n", current->filename);
+		current = current->next;
 	}
 }
