@@ -4,6 +4,8 @@
 *4718021*/
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 #include <unistd.h>
 #include <string.h>
 #include <fcntl.h>
@@ -15,6 +17,7 @@
 #include <dirent.h>
 #include <pthread.h>
 #include <semaphore.h>
+#include <sys/syscall.h>
 
 #define MAX_NODES 100
 
@@ -30,6 +33,7 @@ int initializeQueue(list_t* head, node_t* n);
 void parseInputLine(char *buf, node_t* n, int line);
 void threadFunction(void* arg);
 list_t* dequeue(list_t* head);
+void decrypt(node_t* leafNode);
 
 // int unlink_cb(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf)
 // {
@@ -179,7 +183,7 @@ void inputDirectoryCreator(node_t* n, char *inputDirectory)
     {
       strcpy(n[i].inputFileLocation, inputDirectory);
       strcat(n[i].inputFileLocation, "/");
-      strcat(n[i].inputFileLocation, n[i].textFileName);
+      strcat(n[i].inputFileLocation, n[i].name);
     }
     i++;
   }
@@ -195,7 +199,8 @@ int initializeQueue(list_t* head, node_t* n)
     {
       list_t *newNode = malloc(sizeof(list_t));
       newNode->next = head->next;
-      strcpy(newNode->filename, n[i].inputFileLocation);
+      strcpy(newNode->fileLocation, n[i].inputFileLocation);
+      strcpy(newNode->fileName, n[i].name);
       head->next = newNode;
       numberOfFiles++;
     }
@@ -212,14 +217,56 @@ list_t* dequeue(list_t* head)
   return temp;
 }
 
+void decrypt(node_t* leafNode)
+{
+  FILE *inputFile = fopen(leafNode->inputFileLocation, "r");
+  if(inputFile == NULL)
+  {
+    printf("Failed to open input File");
+  }
+  FILE *outputFile = fopen(leafNode->outputFileLocation, "w");
+  if(outputFile == NULL)
+  {
+    printf("Failed to open output File");
+  }
+  int c;
+  while(1)
+  {
+    c = fgetc(inputFile);
+    if(feof(inputFile))
+    {
+      break;
+    }
+    if(c == 10)
+    {
+      fprintf(outputFile, "%c", c);
+    }
+    else
+    {
+      c = c + 2;
+      fprintf(outputFile, "%c", c);
+    }
+  }
+  fclose(inputFile);
+  fclose(outputFile);
+}
+
 void threadFunction(void* arg)
 {
   struct threadArgs *realArgs = arg;
+  usleep(rand() % 5000);
   sem_wait(&listSem);
-  pthread_mutex_lock(&listLock);
   list_t* listNode = dequeue(realArgs->head);
-  pthread_mutex_unlock(&listLock);
+  //printf("My input file is: %s\n", listNode->fileLocation);
+  FILE *logFile = fopen(realArgs->n[0].logFile, "a");                         //Change to a gettid() call
+  fprintf(logFile, "%s:%d:start\n", listNode->fileName, 100);
+  fclose(logFile);
+
+  node_t* leafNode = findnode(realArgs->n, listNode->fileName);
   sem_post(&listSem);
+  printf("My leafNode is: %s\n", listNode->fileName);
+
+  decrypt(leafNode);
   return 0;
 }
 

@@ -18,7 +18,8 @@ typedef struct node{
 }node_t;
 
 typedef struct list{
-	char filename[1024];
+	char fileName[1024];
+	char fileLocation[1024];
 	struct list *next;
 } list_t;
 
@@ -122,7 +123,8 @@ void printList(list_t *head)
 	list_t *current = head->next;
 	while(current != NULL)
 	{
-		printf("Leaf Node input file location is: %s\n", current->filename);
+		printf("Leaf Node input file name is: %s\n", current->fileName);
+		printf("Leaf Node input file location is: %s\n", current->fileLocation);
 		current = current->next;
 	}
 }
