@@ -20,9 +20,11 @@
 #include <sys/syscall.h>
 
 #define MAX_NODES 100
+#define MAX_CANDIDATES 100
 
 pthread_mutex_t* listLock;
 sem_t* listSem;
+sem_t* memSem;
 
 void inputDirectoryCreator(node_t* n, char *inputDirectory);
 void outputDirectoryCreator(node_t* n, char *outputDirectory);
@@ -33,7 +35,10 @@ int initializeQueue(list_t* head, node_t* n);
 void parseInputLine(char *buf, node_t* n, int line);
 void threadFunction(void* arg);
 list_t* dequeue(list_t* head);
-void decrypt(node_t* leafNode);
+char* decrypt(node_t* leafNode);
+void leafCounter(char* leafFile, char** Candidates, int CandidatesVotes[MAX_CANDIDATES]);
+void aggregateVotes(node_t* node, node_t* root, char **Candidates, int CandidatesVotes[MAX_CANDIDATES]);
+
 
 // int unlink_cb(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf)
 // {
@@ -168,7 +173,7 @@ void outputDirectoryCreator(node_t* n, char *outputDirectory)
     int direrr = mkdir(path, 0750);
     if(direrr == -1)
     {
-      printf("Error is: %s", strerror(errno));
+      printf("Error is: %s\n", strerror(errno));
     }
     i++;
   }
@@ -217,7 +222,7 @@ list_t* dequeue(list_t* head)
   return temp;
 }
 
-void decrypt(node_t* leafNode)
+char* decrypt(node_t* leafNode)
 {
   FILE *inputFile = fopen(leafNode->inputFileLocation, "r");
   if(inputFile == NULL)
@@ -249,12 +254,76 @@ void decrypt(node_t* leafNode)
   }
   fclose(inputFile);
   fclose(outputFile);
+  return(leafNode->outputFileLocation);
+}
+
+void leafCounter(char* leafFile, char** Candidates, int CandidatesVotes[MAX_CANDIDATES])
+{
+  FILE *leaf = fopen(leafFile, "r");
+  char *buf = malloc(50);
+  while(fgets(buf, 256, leaf) != NULL)
+  {
+    //printf(buf);
+    //printf("\n");
+    if(strcmp(buf, "\n") != 0)
+		{
+      //printf(buf);
+			char* p = strchr(buf, '\n');//Delete trailing \n character.
+		  if(p)
+		  {
+			  *p = 0;
+		  }
+      int match = 0;
+      int i;
+      for(i = 0; i < MAX_CANDIDATES; i++)
+      {
+        if(Candidates[i][0] == 0) //Candidate not in array
+        {
+          break;
+        }
+        else if(strcmp(Candidates[i], buf) == 0) //Match found
+        {
+          match = 1;
+          break;
+        }
+      }
+      if(match == 1)
+      {
+        CandidatesVotes[i]++;
+      }
+      else
+	    {
+				int j = 0;
+				while(buf[j] != 0)
+				{
+					Candidates[i][j] = buf[j];	//Store this Candidate into array
+					j++;
+				}
+	      CandidatesVotes[i]++;	//Increment this candidates total votes
+	    }
+    }
+  }
+  fclose(leaf);
+  free(buf);
+}
+
+void aggregateVotes(node_t* node, node_t* root, char **Candidates, int CandidatesVotes[MAX_CANDIDATES])
+{
+  //printf("Hello");
+  //printf("Working in node %s and ", node->name);
+  node_t* parent = root;
+  while(parent->id != node->parentid)
+  {
+    parent++;
+  }
+  //printf("Parent node is :%s\n", parent->name);
+  //printf("Working in node %s and my parent node is %s\n", node->name, node->parent->name);
 }
 
 void threadFunction(void* arg)
 {
   struct threadArgs *realArgs = arg;
-  usleep(rand() % 5000);
+  //usleep(rand() % 5000);
   sem_wait(&listSem);
   list_t* listNode = dequeue(realArgs->head);
   //printf("My input file is: %s\n", listNode->fileLocation);
@@ -264,9 +333,35 @@ void threadFunction(void* arg)
 
   node_t* leafNode = findnode(realArgs->n, listNode->fileName);
   sem_post(&listSem);
-  printf("My leafNode is: %s\n", listNode->fileName);
+  //printf("My leafNode is: %s\n", listNode->fileName);
+  // printf("My leafNode file location is: %s\n", listNode->fileLocation);
 
-  decrypt(leafNode);
+  char *decryptedFileLocation = decrypt(leafNode);
+  //printf("My decrypted leafNode file location is: %s\n", decryptedFileLocation);
+  sem_wait(&memSem);
+  char **Candidates;
+  int CandidatesVotes[MAX_CANDIDATES];
+  Candidates = malloc(MAX_CANDIDATES * sizeof(char*));
+  int i = 0;
+  for(i = 0; i < MAX_CANDIDATES; i++)
+  {
+    Candidates[i] = malloc(50);
+  }
+  for(i = 0; i < MAX_CANDIDATES; i++)
+  {
+    CandidatesVotes[i] = 0;
+  }
+  leafCounter(decryptedFileLocation, Candidates, CandidatesVotes);
+  // i = 0;
+  // while(Candidates[i][0] != 0)
+  // {
+  //   printf("Candidate is :%s and their votes are: %d\n", Candidates[i], CandidatesVotes[i]);
+  //   i++;
+  // }
+  //sem_post(&listSem);
+  sem_post(&memSem);
+  printf("About to aggregate leaf node: %s\n", leafNode->name);
+  aggregateVotes(leafNode, realArgs->n, Candidates, CandidatesVotes);
   return 0;
 }
 
@@ -282,6 +377,22 @@ int main(int argc, char **argv){
   outputDirectoryCreator(mainnodes, argv[3]);
   inputDirectoryCreator(mainnodes, argv[2]);
   //printgraph(mainnodes);
+  int i = 0;
+  while(mainnodes[i].name[0] != '\0')
+  {
+    mainnodes[i].id = i;
+    if(i != 1)
+    {
+      mainnodes[i].parentid = (findnode(mainnodes, mainnodes[i].parentName))->id;
+    }
+    i++;
+  }
+  //i = 0;
+  // while(mainnodes[i].name[0] != '\0')
+  // {
+  //   printf("Node %s has id %d and parent name is %s with id %d\n", mainnodes[i].name, mainnodes[i].id, mainnodes[i].parentName, mainnodes[i].parentid);
+  //   i++;
+  // }
   list_t* head = NULL;
   head = malloc(sizeof(list_t));
   head->next = NULL;
@@ -292,14 +403,10 @@ int main(int argc, char **argv){
   FILE *logFP = fopen(logFile, "w");
   fclose(logFP);
   //printList(head);
-  int i = 0;
+  i = 0;
   while(mainnodes[i].name[0] != '\0')
   {
-    if(pthread_mutex_init(&mainnodes[i].lock, NULL) != 0)
-    {
-      printf("Mutex init failed\n");
-      return 1;
-    }
+    sem_init(&mainnodes[i].nodeSem, 0, 1);
     i++;
   }
   if(pthread_mutex_init(&listLock, NULL) != 0)
@@ -308,6 +415,7 @@ int main(int argc, char **argv){
     return 1;
   }
   sem_init(&listSem, 0, 1);
+  sem_init(&memSem, 0, 1);
   pthread_t threads[numOfThreads];
   for(i = 0; i < numOfThreads; i++)
   {

@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
+#include <semaphore.h>
+
 // Structure for every node
 typedef struct node{
 	char name[1024];
@@ -14,7 +16,10 @@ typedef struct node{
 	int num_children;
 	char childName[50][1024];
 	char parentName[1024];
-	pthread_mutex_t* lock;
+	sem_t* nodeSem;
+	struct node *parent;
+	int id;
+	int parentid;
 }node_t;
 
 typedef struct list{
@@ -26,6 +31,8 @@ typedef struct list{
 struct threadArgs{
 	list_t* head;
 	node_t* n;
+	//char **Candidates;
+	//int CandidatesVotes[MAX_CANDIDATES]
 };
 
 int makeargv(const char*s, const char *delimiters, char ***argvp){
