@@ -260,7 +260,7 @@ char* decrypt(node_t* leafNode)
 void leafCounter(char* leafFile, char** Candidates, int CandidatesVotes[MAX_CANDIDATES])
 {
   FILE *leaf = fopen(leafFile, "r");
-  char *buf = malloc(50);
+  char *buf = malloc(70);
   while(fgets(buf, 256, leaf) != NULL)
   {
     //printf(buf);
@@ -309,15 +309,124 @@ void leafCounter(char* leafFile, char** Candidates, int CandidatesVotes[MAX_CAND
 
 void aggregateVotes(node_t* node, node_t* root, char **Candidates, int CandidatesVotes[MAX_CANDIDATES])
 {
-  //printf("Hello");
-  //printf("Working in node %s and ", node->name);
   node_t* parent = root;
   while(parent->id != node->parentid)
   {
     parent++;
   }
-  //printf("Parent node is :%s\n", parent->name);
-  //printf("Working in node %s and my parent node is %s\n", node->name, node->parent->name);
+  //printf("Working in node %s and my parent node is %s\n", node->name, parent->name);
+  sem_wait(&parent->nodeSem);
+  char* filename = parent->outputFileLocation;
+  int result = access(filename, F_OK);
+  if(result != 0) //File does not exist yet
+  {
+    FILE *aggregateFile = fopen(filename, "w+");
+    int i = 0;
+    while(Candidates[i][0] != 0)
+    {
+      fprintf(aggregateFile, "%s:%d\n", Candidates[i], CandidatesVotes[i]);
+      i++;
+    }
+    fclose(aggregateFile);
+  }
+  else
+  {
+    FILE *aggregateFile = fopen(filename, "r");
+    char **readCandidates = NULL;
+    readCandidates = malloc(MAX_CANDIDATES * sizeof(char*));
+    int readCandidatesVotes[MAX_CANDIDATES];
+    int i = 0;
+    for(i = 0; i < MAX_CANDIDATES; i++)
+    {
+      readCandidates[i] = NULL;
+      readCandidates[i] = malloc(90);
+    }
+    for(i = 0; i < MAX_CANDIDATES; i++)
+    {
+      readCandidatesVotes[i] = 0;
+    }
+    //printf("readCandidates made correctly\n");
+    char *buf = NULL;
+    buf = malloc(250);
+    int j = 0;
+    while(fgets(buf, 250, aggregateFile) != NULL)
+    {
+      if(strcmp(buf, "\n") != 0)
+      {
+        char* p = strchr(buf, '\n');//Delete trailing \n character.
+        if(p)
+        {
+          *p = 0;
+        }
+        char **strings;
+        int numOfTokens = makeargv(buf, ":", &strings);
+        strcpy(readCandidates[j], strings[0]);
+        int votes = atoi(strings[1]);
+        readCandidatesVotes[j] = votes;
+      }
+      j++;
+    }
+    free(buf);
+    fclose(aggregateFile);
+    int match = 0;
+    int a = 0;
+    while(Candidates[a][0] != 0)
+    {
+      for(i = 0; i < MAX_CANDIDATES; i++)
+      {
+        if(readCandidates[i][0] == 0)
+        {
+          break;
+        }
+        else if(strcmp(readCandidates[i], Candidates[a]) == 0)
+        {
+          match = 1;
+          break;
+        }
+      }
+      if(match == 1)
+      {
+        readCandidatesVotes[i] += CandidatesVotes[a];
+      }
+      else
+      {
+        strcpy(readCandidates[j], Candidates[a]);
+        readCandidatesVotes[j] = CandidatesVotes[a];
+        j++;
+      }
+      a++;
+    }
+    // i = 0;
+    // printf("I'm node %s\n", node->name);
+    // printf("%s's new aggregated votes\n", parent->name);
+    // while(readCandidates[i][0] != 0)
+    // {
+    //   printf("Candidate: %s, Votes: %d\n", readCandidates[i], readCandidatesVotes[i]);
+    //   i++;
+    // }
+    FILE *newAggregateFile = fopen(filename, "w");
+    i = 0;
+    while(readCandidates[i][0] != 0)
+    {
+      fprintf(newAggregateFile, "%s:%d\n", readCandidates[i], readCandidatesVotes[i]);
+      i++;
+    }
+    fclose(newAggregateFile);
+    // i = 0;
+    // printf("I'm node %s\n", node->name);
+    // printf("%s's new aggregated votes\n", parent->name);
+    // while(readCandidates[i][0] != 0)
+    // {
+    //   printf("Candidate: %s, Votes: %d\n", readCandidates[i], readCandidatesVotes[i]);
+    //   i++;
+    // }
+  //   for(i = 0; i < MAX_CANDIDATES; i++)
+  //   {
+  //     free(readCandidates[i]);
+  //   }
+  //   free(readCandidates);
+  }
+  sem_post(&parent->nodeSem);
 }
 
 void threadFunction(void* arg)
@@ -360,7 +469,7 @@ void threadFunction(void* arg)
   // }
   //sem_post(&listSem);
   sem_post(&memSem);
-  printf("About to aggregate leaf node: %s\n", leafNode->name);
+  //printf("About to aggregate leaf node: %s\n", leafNode->name);
   aggregateVotes(leafNode, realArgs->n, Candidates, CandidatesVotes);
   return 0;
 }
