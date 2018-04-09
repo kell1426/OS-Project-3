@@ -527,4 +527,34 @@ int main(int argc, char **argv){
   {
     pthread_join(threads[i], NULL);
   }
+  FILE *tempFp = fopen(mainnodes[0].outputFileLocation, "r");
+  char *buffer = NULL;
+  buffer = malloc(256);
+  char *winnerName = malloc(256);
+  int winnerVotes = 0;
+  int tokens;
+  while(fgets(buffer, 256, tempFp) != NULL)
+  {
+    if(strcmp(buffer, "\n") != 0)
+    {
+      char* p = strchr(buffer, '\n');//Delete trailing \n character.
+      if(p)
+       {
+        *p = 0;
+       }
+       char **strings;
+       tokens = makeargv(buffer, ":", &strings);
+       if(atoi(strings[1]) > winnerVotes)
+       {
+         strcpy(winnerName, strings[0]);
+         winnerVotes = atoi(strings[1]);
+       }
+     }
+   }
+   fclose(tempFp);
+   FILE *winnerFile = fopen(mainnodes[0].outputFileLocation, "a");
+   fprintf(winnerFile, "Winner:%s\n", winnerName);
+   fclose(winnerFile);
+   free(buffer);
+   free(winnerName);
 }
