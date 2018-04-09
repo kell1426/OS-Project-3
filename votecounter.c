@@ -260,7 +260,7 @@ char* decrypt(node_t* leafNode)
 void leafCounter(char* leafFile, char** Candidates, int CandidatesVotes[MAX_CANDIDATES])
 {
   FILE *leaf = fopen(leafFile, "r");
-  char *buf = malloc(70);
+  char *buf = malloc(256);
   while(fgets(buf, 256, leaf) != NULL)
   {
     //printf(buf);
@@ -329,103 +329,82 @@ void aggregateVotes(node_t* node, node_t* root, char **Candidates, int Candidate
     }
     fclose(aggregateFile);
   }
-  else
-  {
-    FILE *aggregateFile = fopen(filename, "r");
-    char **readCandidates = NULL;
-    readCandidates = malloc(MAX_CANDIDATES * sizeof(char*));
-    int readCandidatesVotes[MAX_CANDIDATES];
-    int i = 0;
-    for(i = 0; i < MAX_CANDIDATES; i++)
-    {
-      readCandidates[i] = NULL;
-      readCandidates[i] = malloc(90);
-    }
-    for(i = 0; i < MAX_CANDIDATES; i++)
-    {
-      readCandidatesVotes[i] = 0;
-    }
-    //printf("readCandidates made correctly\n");
-    char *buf = NULL;
-    buf = malloc(250);
-    int j = 0;
-    while(fgets(buf, 250, aggregateFile) != NULL)
-    {
-      if(strcmp(buf, "\n") != 0)
-      {
-        char* p = strchr(buf, '\n');//Delete trailing \n character.
-        if(p)
-        {
-          *p = 0;
-        }
-        char **strings;
-        int numOfTokens = makeargv(buf, ":", &strings);
-        strcpy(readCandidates[j], strings[0]);
-        int votes = atoi(strings[1]);
-        readCandidatesVotes[j] = votes;
-      }
-      j++;
-    }
-    free(buf);
-    fclose(aggregateFile);
-    int match = 0;
-    int a = 0;
-    while(Candidates[a][0] != 0)
-    {
-      for(i = 0; i < MAX_CANDIDATES; i++)
-      {
-        if(readCandidates[i][0] == 0)
-        {
-          break;
-        }
-        else if(strcmp(readCandidates[i], Candidates[a]) == 0)
-        {
-          match = 1;
-          break;
-        }
-      }
-      if(match == 1)
-      {
-        readCandidatesVotes[i] += CandidatesVotes[a];
-      }
-      else
-      {
-        strcpy(readCandidates[j], Candidates[a]);
-        readCandidatesVotes[j] = CandidatesVotes[a];
-        j++;
-      }
-      a++;
-    }
-    // i = 0;
-    // printf("I'm node %s\n", node->name);
-    // printf("%s's new aggregated votes\n", parent->name);
-    // while(readCandidates[i][0] != 0)
-    // {
-    //   printf("Candidate: %s, Votes: %d\n", readCandidates[i], readCandidatesVotes[i]);
-    //   i++;
-    // }
-    FILE *newAggregateFile = fopen(filename, "w");
-    i = 0;
-    while(readCandidates[i][0] != 0)
-    {
-      fprintf(newAggregateFile, "%s:%d\n", readCandidates[i], readCandidatesVotes[i]);
-      i++;
-    }
-    fclose(newAggregateFile);
-    // i = 0;
-    // printf("I'm node %s\n", node->name);
-    // printf("%s's new aggregated votes\n", parent->name);
-    // while(readCandidates[i][0] != 0)
-    // {
-    //   printf("Candidate: %s, Votes: %d\n", readCandidates[i], readCandidatesVotes[i]);
-    //   i++;
-    // }
-  //   for(i = 0; i < MAX_CANDIDATES; i++)
+  //else
+  // {
+  //   char tempfile[256] = "";
+  //   strcpy(tempfile, filename);
+  //   strcat(tempfile, "1");
+  //   FILE *aggregateFile = fopen(filename, "r");
+  //   printf("%s\n", tempfile);
+  //   FILE *tempFp = fopen(tempfile, "w");
+  //   char *buffer = NULL;
+  //   buffer = malloc(40);
+  //   while(fgets(buffer, 40, aggregateFile) != NULL)
   //   {
-  //     free(readCandidates[i]);
+  //     if(strcmp(buffer, "\n") != 0)
+  //     {
+  //     	char* p = strchr(buffer, '\n');//Delete trailing \n character.
+  //       if(p)
+  //   	  {
+  //     	  *p = 0;
+  //     	}
+  //       fprintf(tempFp, "%s\n", buffer);
+  //       printf("%s\n", buffer);
+  //       }
+  //    }
+  //    free(buffer);
+  //    fclose(aggregateFile);
+  //    fclose(tempFp);
+  // }
+  // else
+  // {
+  //   char tempfile[256] = "";
+  //   //printf(filename);
+  //   //printf("\n");
+  //   strcpy(tempfile, filename);
+  //   strcat(tempfile, "1");
+  //   FILE *aggregateFile = fopen(filename, "r");
+  //   printf("%s\n", tempfile);
+  //   FILE *tempFp = fopen(tempfile, "w");
+  //   int i = 0;
+  //   while(Candidates[i][0] != 0)
+  //   {
+  //     printf("%s:%d\n", Candidates[i], CandidatesVotes[i]);
+  //     int match = 0;
+  //     char buffer[256];
+  //     char **strings;
+  //     while(fgets(buffer, 256, aggregateFile) != NULL)
+  //     {
+  //       if(strcmp(buffer, "\n") != 0)
+  //   		{
+  //   			char* p = strchr(buffer, '\n');//Delete trailing \n character.
+  //   		  if(p)
+  //   		  {
+  //   			  *p = 0;
+  //   		  }
+  //         int tokens = makeargv(buffer, ":", &strings);
+  //         if(strcmp(Candidates[i], buffer) == 0)
+  //         {
+  //           match = 1;
+  //           break;
+  //         }
+  //       }
+  //     }
+  //     if(match == 1)
+  //     {
+  //       int votes = atoi(strings[1]);
+  //       votes = votes + CandidatesVotes[i];
+  //       fprintf(tempFp, "%s:%d\n", Candidates[i], votes);
+  //     }
+  //     else
+  //     {
+  //       fprintf(tempFp, "%s:%d\n", Candidates[i], CandidatesVotes);
+  //     }
+  //     i++;
   //   }
-  //   free(readCandidates);
-  }
+  //   fclose(aggregateFile);
+  //   fclose(tempFp);
+  //}
   sem_post(&parent->nodeSem);
 }
 
@@ -436,7 +415,7 @@ void threadFunction(void* arg)
   sem_wait(&listSem);
   list_t* listNode = dequeue(realArgs->head);
   //printf("My input file is: %s\n", listNode->fileLocation);
-  FILE *logFile = fopen(realArgs->n[0].logFile, "a");                         //Change to a gettid() call
+  FILE *logFile = fopen(realArgs->n[0].logFile, "a");            //Change to a gettid() call
   fprintf(logFile, "%s:%d:start\n", listNode->fileName, 100);
   fclose(logFile);
 
@@ -454,7 +433,7 @@ void threadFunction(void* arg)
   int i = 0;
   for(i = 0; i < MAX_CANDIDATES; i++)
   {
-    Candidates[i] = malloc(50);
+    Candidates[i] = malloc(256);
   }
   for(i = 0; i < MAX_CANDIDATES; i++)
   {
@@ -462,12 +441,12 @@ void threadFunction(void* arg)
   }
   leafCounter(decryptedFileLocation, Candidates, CandidatesVotes);
   // i = 0;
+  // printf("Candidate info from node %s to be aggragated into node %s\n", leafNode->name, leafNode->parentName);
   // while(Candidates[i][0] != 0)
   // {
   //   printf("Candidate is :%s and their votes are: %d\n", Candidates[i], CandidatesVotes[i]);
   //   i++;
   // }
-  //sem_post(&listSem);
   sem_post(&memSem);
   //printf("About to aggregate leaf node: %s\n", leafNode->name);
   aggregateVotes(leafNode, realArgs->n, Candidates, CandidatesVotes);
