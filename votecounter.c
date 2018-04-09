@@ -461,6 +461,11 @@ void threadFunction(void* arg)
   sem_post(&memSem);
   leafCounter(decryptedFileLocation, Candidates, CandidatesVotes);
   aggregateVotes(leafNode, realArgs->n, Candidates, CandidatesVotes);
+  // pthread_mutex_lock(&listLock);
+  FILE *logFile2 = fopen(realArgs->n[0].logFile, "a");            //Change to a gettid() call
+  fprintf(logFile2, "%s:%d:end\n", listNode->fileName, 100);
+  fclose(logFile2);
+  // pthread_mutex_unlock(&listLock);
   return 0;
 }
 
