@@ -309,6 +309,11 @@ void leafCounter(char* leafFile, char** Candidates, int CandidatesVotes[MAX_CAND
 
 void aggregateVotes(node_t* node, node_t* root, char **Candidates, int CandidatesVotes[MAX_CANDIDATES])
 {
+  if(node->id == 0)
+  {
+    return;
+  }
+  usleep(500);
   node_t* parent = root;
   while(parent->id != node->parentid)
   {
@@ -322,110 +327,124 @@ void aggregateVotes(node_t* node, node_t* root, char **Candidates, int Candidate
   {
     FILE *aggregateFile = fopen(filename, "w+");
     int i = 0;
+    //printf("I am node %s. Aggregate file is not made so I am copying my votes\n", node->name);
     while(Candidates[i][0] != 0)
     {
-      fprintf(aggregateFile, "%s:%d\n", Candidates[i], CandidatesVotes[i]);
+      if((Candidates[i][0] >= 48 && Candidates[i][0] <= 57) || (Candidates[i][0] >= 65 && Candidates[i][0] <= 90) || (Candidates[i][0] >= 97 && Candidates[i][0] <= 122))
+      {
+        if(Candidates[i][0] != 'x')
+        {
+          fprintf(aggregateFile, "%s:%d\n", Candidates[i], CandidatesVotes[i]);
+        }
+      }
       i++;
     }
     fclose(aggregateFile);
   }
-  //else
-  // {
-  //   char tempfile[256] = "";
-  //   strcpy(tempfile, filename);
-  //   strcat(tempfile, "1");
-  //   FILE *aggregateFile = fopen(filename, "r");
-  //   printf("%s\n", tempfile);
-  //   FILE *tempFp = fopen(tempfile, "w");
-  //   char *buffer = NULL;
-  //   buffer = malloc(40);
-  //   while(fgets(buffer, 40, aggregateFile) != NULL)
-  //   {
-  //     if(strcmp(buffer, "\n") != 0)
-  //     {
-  //     	char* p = strchr(buffer, '\n');//Delete trailing \n character.
-  //       if(p)
-  //   	  {
-  //     	  *p = 0;
-  //     	}
-  //       fprintf(tempFp, "%s\n", buffer);
-  //       printf("%s\n", buffer);
-  //       }
-  //    }
-  //    free(buffer);
-  //    fclose(aggregateFile);
-  //    fclose(tempFp);
-  // }
-  // else
-  // {
-  //   char tempfile[256] = "";
-  //   //printf(filename);
-  //   //printf("\n");
-  //   strcpy(tempfile, filename);
-  //   strcat(tempfile, "1");
-  //   FILE *aggregateFile = fopen(filename, "r");
-  //   printf("%s\n", tempfile);
-  //   FILE *tempFp = fopen(tempfile, "w");
-  //   int i = 0;
-  //   while(Candidates[i][0] != 0)
-  //   {
-  //     printf("%s:%d\n", Candidates[i], CandidatesVotes[i]);
-  //     int match = 0;
-  //     char buffer[256];
-  //     char **strings;
-  //     while(fgets(buffer, 256, aggregateFile) != NULL)
-  //     {
-  //       if(strcmp(buffer, "\n") != 0)
-  //   		{
-  //   			char* p = strchr(buffer, '\n');//Delete trailing \n character.
-  //   		  if(p)
-  //   		  {
-  //   			  *p = 0;
-  //   		  }
-  //         int tokens = makeargv(buffer, ":", &strings);
-  //         if(strcmp(Candidates[i], buffer) == 0)
-  //         {
-  //           match = 1;
-  //           break;
-  //         }
-  //       }
-  //     }
-  //     if(match == 1)
-  //     {
-  //       int votes = atoi(strings[1]);
-  //       votes = votes + CandidatesVotes[i];
-  //       fprintf(tempFp, "%s:%d\n", Candidates[i], votes);
-  //     }
-  //     else
-  //     {
-  //       fprintf(tempFp, "%s:%d\n", Candidates[i], CandidatesVotes);
-  //     }
-  //     i++;
-  //   }
-  //   fclose(aggregateFile);
-  //   fclose(tempFp);
-  //}
+  else
+  {
+    //printf("I am node %s. Aggregate file is made so I am aggregating my votes\n", node->name);
+    char tempfile[256] = "";
+    strcpy(tempfile, filename);
+    strcat(tempfile, "1");
+    FILE *aggregateFile = fopen(filename, "r");
+    FILE *tempFp = fopen(tempfile, "w");
+    char *buffer = NULL;
+    buffer = malloc(256);
+    while(fgets(buffer, 256, aggregateFile) != NULL)
+    {
+      if(strcmp(buffer, "\n") != 0)
+      {
+        char* p = strchr(buffer, '\n');//Delete trailing \n character.
+        if(p)
+         {
+          *p = 0;
+         }
+         char **strings;
+         int tokens = makeargv(buffer, ":", &strings);
+         int i = 0;
+         int match = 0;
+         while(Candidates[i][0] != 0)
+         {
+            if(strcmp(Candidates[i], strings[0]) == 0)
+            {
+             match = 1;
+             break;
+            }
+           i++;
+         }
+         if(match == 1)
+         {
+           int votes = atoi(strings[1]);
+           votes = votes + CandidatesVotes[i];
+           fprintf(tempFp, "%s:%d\n", Candidates[i], votes);
+         }
+         else
+         {
+           fprintf(tempFp, "%s:%s\n", strings[0], strings[1]);
+         }
+       }
+     }
+     fclose(aggregateFile);
+     int i = 0;
+     while(Candidates[i][0] != 0)
+     {
+       int match = 0;
+       if((Candidates[i][0] >= 48 && Candidates[i][0] <= 57) || (Candidates[i][0] >= 65 && Candidates[i][0] <= 90) || (Candidates[i][0] >= 97 && Candidates[i][0] <= 122))
+       {
+         if(Candidates[i][0] != 'x')
+         {
+           //printf("Candidate %s\n", Candidates[i]);
+           FILE *aggregateFileAgain = fopen(filename, "r");
+           while(fgets(buffer, 256, aggregateFileAgain) != NULL)
+           {
+             if(strcmp(buffer, "\n") != 0)
+             {
+               char **strings;
+               char* p = strchr(buffer, '\n');//Delete trailing \n character.
+               if(p)
+               {
+                 *p = 0;
+               }
+               int tokens = makeargv(buffer, ":", &strings);
+               //printf("%s\n", strings[0]);
+               if(strcmp(Candidates[i], strings[0]) == 0)
+               {
+                 match = 1;
+                 break;
+               }
+             }
+           }
+           fclose(aggregateFileAgain);
+           if(match == 0)
+           {
+             fprintf(tempFp, "%s:%d\n", Candidates[i], CandidatesVotes[i]);
+           }
+         }
+       }
+       i++;
+     }
+     fclose(tempFp);
+     //printf("%s\n", filename);
+     remove(filename);
+     rename(tempfile, filename);
+   }
   sem_post(&parent->nodeSem);
+  aggregateVotes(parent, root, Candidates, CandidatesVotes);
 }
 
 void threadFunction(void* arg)
 {
   struct threadArgs *realArgs = arg;
-  //usleep(rand() % 5000);
   sem_wait(&listSem);
   list_t* listNode = dequeue(realArgs->head);
-  //printf("My input file is: %s\n", listNode->fileLocation);
   FILE *logFile = fopen(realArgs->n[0].logFile, "a");            //Change to a gettid() call
   fprintf(logFile, "%s:%d:start\n", listNode->fileName, 100);
   fclose(logFile);
-
   node_t* leafNode = findnode(realArgs->n, listNode->fileName);
   sem_post(&listSem);
-  //printf("My leafNode is: %s\n", listNode->fileName);
-  // printf("My leafNode file location is: %s\n", listNode->fileLocation);
 
   char *decryptedFileLocation = decrypt(leafNode);
-  //printf("My decrypted leafNode file location is: %s\n", decryptedFileLocation);
   sem_wait(&memSem);
   char **Candidates;
   int CandidatesVotes[MAX_CANDIDATES];
@@ -439,16 +458,8 @@ void threadFunction(void* arg)
   {
     CandidatesVotes[i] = 0;
   }
-  leafCounter(decryptedFileLocation, Candidates, CandidatesVotes);
-  // i = 0;
-  // printf("Candidate info from node %s to be aggragated into node %s\n", leafNode->name, leafNode->parentName);
-  // while(Candidates[i][0] != 0)
-  // {
-  //   printf("Candidate is :%s and their votes are: %d\n", Candidates[i], CandidatesVotes[i]);
-  //   i++;
-  // }
   sem_post(&memSem);
-  //printf("About to aggregate leaf node: %s\n", leafNode->name);
+  leafCounter(decryptedFileLocation, Candidates, CandidatesVotes);
   aggregateVotes(leafNode, realArgs->n, Candidates, CandidatesVotes);
   return 0;
 }
@@ -475,12 +486,7 @@ int main(int argc, char **argv){
     }
     i++;
   }
-  //i = 0;
-  // while(mainnodes[i].name[0] != '\0')
-  // {
-  //   printf("Node %s has id %d and parent name is %s with id %d\n", mainnodes[i].name, mainnodes[i].id, mainnodes[i].parentName, mainnodes[i].parentid);
-  //   i++;
-  // }
+
   list_t* head = NULL;
   head = malloc(sizeof(list_t));
   head->next = NULL;
