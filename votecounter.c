@@ -38,11 +38,18 @@ void leafCounter(char* leafFile, char** Candidates, int CandidatesVotes[MAX_CAND
 void aggregateVotes(node_t* node, node_t* root, char **Candidates, int CandidatesVotes[MAX_CANDIDATES]);
 pid_t gettid();
 
+// Function: gettid
+// Returns the id of the currently running thread
 pid_t gettid()
 {
   return syscall( __NR_gettid );
 }
 
+// Function parseInputLine
+// Takes in one line of the DAG textfile, all the nodes,
+// If line = 1 (first line), then the function will add in all the info
+// to the start of the array.
+// If line > 1, then the function will add in all the info at the end of the array
 void parseInputLine(char *buf, node_t* n, int line)
 {
   char **strings;
@@ -70,10 +77,6 @@ void parseInputLine(char *buf, node_t* n, int line)
     while(n[i].name[0] != '\0')
     {
       char *name = &n[i].name;
-      // if(strcmp(name, "0") == 0)
-      // {
-      //   break;
-      // }
       if(strcmp(name, strings[0]) == 0)
       {
         parent = i;
@@ -93,6 +96,9 @@ void parseInputLine(char *buf, node_t* n, int line)
   }
 }
 
+// Function DAGCreator
+// Takes in the nodes and the DAG fileName
+// Loops until at the EOF and calls parseInputLine()
 void DAGCreator(node_t* n, char *filename)
 {
   FILE *DAG = fopen(filename, "r");
@@ -113,6 +119,12 @@ void DAGCreator(node_t* n, char *filename)
   }
 }
 
+// Function outputDirectoryCreator
+// Takes in the nodes and outputDirectory name
+// Sets up all the output file names and locations
+// into the nodes.
+// Then creates the output directory, and then creates
+// all the directories for each node
 void outputDirectoryCreator(node_t* n, char *outputDirectory)
 {
   strcpy(n[0].outputDirectoryPath, outputDirectory);
@@ -159,6 +171,9 @@ void outputDirectoryCreator(node_t* n, char *outputDirectory)
   }
 }
 
+// Function inputDirectoryCreator
+// Takes in the nodes and the inputDirectory location.
+// Sets up the input file locations for the leaf nodes.
 void inputDirectoryCreator(node_t* n, char *inputDirectory)
 {
   int i = 1;
@@ -174,6 +189,12 @@ void inputDirectoryCreator(node_t* n, char *inputDirectory)
   }
 }
 
+// Function initializeQueue
+// Takes in the dynamic queue and the nodes.
+// Iterates through the nodes and if it is a leaf node,
+// A new list node is added to the start of the dynamic
+// queue. Returns the number of nodes in the list, this is
+// used to generate the number of threads needed.
 int initializeQueue(list_t* head, node_t* n)
 {
   int i = 1;
@@ -194,6 +215,9 @@ int initializeQueue(list_t* head, node_t* n)
   return numberOfFiles;
 }
 
+//Function dequeue
+// Takes in the dynamic list and removes the first node
+// in the list. Returns the first node.
 list_t* dequeue(list_t* head)
 {
   list_t* temp = head->next;
@@ -202,6 +226,12 @@ list_t* dequeue(list_t* head)
   return temp;
 }
 
+// Function decrypt
+// Takes in the leafnode being executed by the thread.
+// Opens the input and output files. Takes in each character
+// of the inputfile and increments it by two.
+// The decrypted file is then created in the correct output
+// directory for the current leaf node.
 int decrypt(node_t* leafNode)
 {
   FILE *inputFile = fopen(leafNode->inputFileLocation, "r");
@@ -213,7 +243,7 @@ int decrypt(node_t* leafNode)
   FILE *outputFile = fopen(leafNode->outputFileLocation, "w");
   if(outputFile == NULL)
   {
-    printf("Failed to open output File");
+    perror("Output file Error");
   }
   int c;
   int fileEmpty = 0;
@@ -245,17 +275,19 @@ int decrypt(node_t* leafNode)
   return 0;
 }
 
+// Function leafCounter
+// Takes in the leaf node filename, and the thread arguments Candidates and CandidatesVotes
+// Opens the leafFile and gets the first line. If a new candidate, adds this candidate
+// to the list of candidates increments the votes for this candidate by one. If a match is
+// found, it will increment that candidates votes.
 void leafCounter(char* leafFile, char** Candidates, int CandidatesVotes[MAX_CANDIDATES])
 {
   FILE *leaf = fopen(leafFile, "r");
   char *buf = malloc(256);
   while(fgets(buf, 256, leaf) != NULL)
   {
-    //printf(buf);
-    //printf("\n");
     if(strcmp(buf, "\n") != 0)
 		{
-      //printf(buf);
 			char* p = strchr(buf, '\n');//Delete trailing \n character.
 		  if(p)
 		  {
@@ -295,6 +327,17 @@ void leafCounter(char* leafFile, char** Candidates, int CandidatesVotes[MAX_CAND
   free(buf);
 }
 
+ // Function aggregateVotes
+ // This is the function that each thread will recursivley call. If the current node
+ // is thre root node, the function will return and exit the recursion. Otherwise, it will
+ // scan for this nodes parent in the array of nodes.
+ // When found, it will call a wait on this nodes semaphore to prevent any other threads
+ // from entering this node. If the aggregateFile does not yet exist, the thread will
+ // create it and copy its candidate info to this file. If it does exist it will scan for matches
+ // between the file and its candidates. First the candidates read into the buffer are
+ // directly copied over if no match, and if there is a match it increments that candidates votes.
+ // Then it cycles again through all the candidates and searches for any extra candidates that were
+ // not found within the original aggregateFile.
 void aggregateVotes(node_t* node, node_t* root, char **Candidates, int CandidatesVotes[MAX_CANDIDATES])
 {
   if(node->id == 0)
@@ -307,7 +350,6 @@ void aggregateVotes(node_t* node, node_t* root, char **Candidates, int Candidate
   {
     parent++;
   }
-  //printf("Working in node %s and my parent node is %s\n", node->name, parent->name);
   sem_wait(&parent->nodeSem);
   char* filename = parent->outputFileLocation;
   int result = access(filename, F_OK);
@@ -315,7 +357,6 @@ void aggregateVotes(node_t* node, node_t* root, char **Candidates, int Candidate
   {
     FILE *aggregateFile = fopen(filename, "w+");
     int i = 0;
-    //printf("I am node %s. Aggregate file is not made so I am copying my votes\n", node->name);
     while(Candidates[i][0] != 0)
     {
       if((Candidates[i][0] >= 48 && Candidates[i][0] <= 57) || (Candidates[i][0] >= 65 && Candidates[i][0] <= 90) || (Candidates[i][0] >= 97 && Candidates[i][0] <= 122))
@@ -331,7 +372,6 @@ void aggregateVotes(node_t* node, node_t* root, char **Candidates, int Candidate
   }
   else
   {
-    //printf("I am node %s. Aggregate file is made so I am aggregating my votes\n", node->name);
     char tempfile[256] = "";
     strcpy(tempfile, filename);
     strcat(tempfile, "1");
@@ -382,7 +422,6 @@ void aggregateVotes(node_t* node, node_t* root, char **Candidates, int Candidate
        {
          if(Candidates[i][0] != 'x')
          {
-           //printf("Candidate %s\n", Candidates[i]);
            FILE *aggregateFileAgain = fopen(filename, "r");
            while(fgets(buffer, 256, aggregateFileAgain) != NULL)
            {
@@ -395,7 +434,6 @@ void aggregateVotes(node_t* node, node_t* root, char **Candidates, int Candidate
                  *p = 0;
                }
                int tokens = makeargv(buffer, ":", &strings);
-               //printf("%s\n", strings[0]);
                if(strcmp(Candidates[i], strings[0]) == 0)
                {
                  match = 1;
@@ -413,7 +451,6 @@ void aggregateVotes(node_t* node, node_t* root, char **Candidates, int Candidate
        i++;
      }
      fclose(tempFp);
-     //printf("%s\n", filename);
      remove(filename);
      rename(tempfile, filename);
    }
@@ -421,6 +458,16 @@ void aggregateVotes(node_t* node, node_t* root, char **Candidates, int Candidate
   aggregateVotes(parent, root, Candidates, CandidatesVotes);
 }
 
+// Function threadFunction
+// This function takes the args passed to each thread.
+// First the list semaphore is waited on and a node from the
+// dynamic list is taken. once this is taken, the semaphore is posted to.
+// Next, the input file is decrypted with decrypt(). If the input file does not exist,
+// then the thread exits here and returns -1. Next a memory semaphore is waited on
+// so that each thread can initialize its Candidates and CandidatesVotes variables
+// without being interupted. Then the memory semaphore is posted to. Then
+// leafCounter and aggregateVotes are called for the thread. Once aggregateVotes has finished
+// its recursive calls, the log file is written to and the thread exits.
 void threadFunction(void* arg)
 {
   struct threadArgs *realArgs = arg;
@@ -464,6 +511,11 @@ void threadFunction(void* arg)
   return 0;
 }
 
+// Function main
+// The main function is responsible for setting up the DAG, calling the 
+// output and input directory creators, adding in ids for the nodes, initializing
+// the semaphores and dynamic list, and creating the threads. After all the threads
+// finish running, the main thread opens the root node file and determines the winner.
 int main(int argc, char **argv){
   struct node* mainnodes=(struct node*)malloc(sizeof(struct node)*MAX_NODES);
 
