@@ -38,8 +38,12 @@ list_t* dequeue(list_t* head);
 char* decrypt(node_t* leafNode);
 void leafCounter(char* leafFile, char** Candidates, int CandidatesVotes[MAX_CANDIDATES]);
 void aggregateVotes(node_t* node, node_t* root, char **Candidates, int CandidatesVotes[MAX_CANDIDATES]);
+pid_t gettid();
 
-
+pid_t gettid()
+{
+  return syscall( __NR_gettid );
+}
 // int unlink_cb(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf)
 // {
 //     int rv = remove(fpath);
@@ -439,7 +443,7 @@ void threadFunction(void* arg)
   sem_wait(&listSem);
   list_t* listNode = dequeue(realArgs->head);
   FILE *logFile = fopen(realArgs->n[0].logFile, "a");            //Change to a gettid() call
-  fprintf(logFile, "%s:%d:start\n", listNode->fileName, 100);
+  fprintf(logFile, "%s:%d:start\n", listNode->fileName, gettid());
   fclose(logFile);
   node_t* leafNode = findnode(realArgs->n, listNode->fileName);
   sem_post(&listSem);
@@ -463,7 +467,7 @@ void threadFunction(void* arg)
   aggregateVotes(leafNode, realArgs->n, Candidates, CandidatesVotes);
   // pthread_mutex_lock(&listLock);
   FILE *logFile2 = fopen(realArgs->n[0].logFile, "a");            //Change to a gettid() call
-  fprintf(logFile2, "%s:%d:end\n", listNode->fileName, 100);
+  fprintf(logFile2, "%s:%d:end\n", listNode->fileName, gettid());
   fclose(logFile2);
   // pthread_mutex_unlock(&listLock);
   return 0;
