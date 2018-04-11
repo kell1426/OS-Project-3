@@ -1,5 +1,5 @@
 /*kell1426
-*02/21/18
+*04/11/18
 *Daniel Kelly
 *4718021*/
 
@@ -30,12 +30,10 @@ void inputDirectoryCreator(node_t* n, char *inputDirectory);
 void outputDirectoryCreator(node_t* n, char *outputDirectory);
 void DAGCreator(node_t* n, char *filename);
 int initializeQueue(list_t* head, node_t* n);
-// int unlink_cb(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf);
-// int rmrf(char *path);
 void parseInputLine(char *buf, node_t* n, int line);
 void threadFunction(void* arg);
 list_t* dequeue(list_t* head);
-char* decrypt(node_t* leafNode);
+int decrypt(node_t* leafNode);
 void leafCounter(char* leafFile, char** Candidates, int CandidatesVotes[MAX_CANDIDATES]);
 void aggregateVotes(node_t* node, node_t* root, char **Candidates, int CandidatesVotes[MAX_CANDIDATES]);
 pid_t gettid();
@@ -44,20 +42,6 @@ pid_t gettid()
 {
   return syscall( __NR_gettid );
 }
-// int unlink_cb(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf)
-// {
-//     int rv = remove(fpath);
-//
-//     if (rv)
-//         perror(fpath);
-//
-//     return rv;
-// }
-//
-// int rmrf(char *path)
-// {
-//     return nftw(path, unlink_cb, 64, FTW_DEPTH | FTW_PHYS);
-// }
 
 void parseInputLine(char *buf, node_t* n, int line)
 {
@@ -68,7 +52,6 @@ void parseInputLine(char *buf, node_t* n, int line)
     int i;
     for(i = 0; i < numOfTokens; i++)
     {
-      //n[i].name = strings[i];
       strcpy(n[i].name, strings[i]);
       strcpy(n[i].textFileName, n[i].name);
       strcat(n[i].textFileName, ".txt");
@@ -132,13 +115,6 @@ void DAGCreator(node_t* n, char *filename)
 
 void outputDirectoryCreator(node_t* n, char *outputDirectory)
 {
-  // DIR *dir = opendir(outputDirectory);
-  // if(dir) //Directory already exists
-  // {
-  //   closedir(dir);
-  //   rmrf(outputDirectory);
-  // }
-  // mkdir(outputDirectory, 0700);
   strcpy(n[0].outputDirectoryPath, outputDirectory);
   strcat(n[0].outputDirectoryPath, "/");
   strcat(n[0].outputDirectoryPath, n[0].name);
@@ -226,12 +202,13 @@ list_t* dequeue(list_t* head)
   return temp;
 }
 
-char* decrypt(node_t* leafNode)
+int decrypt(node_t* leafNode)
 {
   FILE *inputFile = fopen(leafNode->inputFileLocation, "r");
   if(inputFile == NULL)
   {
-    printf("Failed to open input File");
+    printf("Input file for %s does not exist. Continuing normal execution by skipping this leaf\n", leafNode->name);
+    pthread_exit(-1);
   }
   FILE *outputFile = fopen(leafNode->outputFileLocation, "w");
   if(outputFile == NULL)
@@ -239,6 +216,7 @@ char* decrypt(node_t* leafNode)
     printf("Failed to open output File");
   }
   int c;
+  int fileEmpty = 0;
   while(1)
   {
     c = fgetc(inputFile);
@@ -246,6 +224,7 @@ char* decrypt(node_t* leafNode)
     {
       break;
     }
+    fileEmpty = 1;
     if(c == 10)
     {
       fprintf(outputFile, "%c", c);
@@ -256,9 +235,14 @@ char* decrypt(node_t* leafNode)
       fprintf(outputFile, "%c", c);
     }
   }
+  if(fileEmpty == 0)
+  {
+    printf("Input file for %s is empty. Continuing normal execution by skipping this leaf\n", leafNode->name);
+    return -1;
+  }
   fclose(inputFile);
   fclose(outputFile);
-  return(leafNode->outputFileLocation);
+  return 0;
 }
 
 void leafCounter(char* leafFile, char** Candidates, int CandidatesVotes[MAX_CANDIDATES])
@@ -317,7 +301,7 @@ void aggregateVotes(node_t* node, node_t* root, char **Candidates, int Candidate
   {
     return;
   }
-  usleep(500);
+  usleep(750);
   node_t* parent = root;
   while(parent->id != node->parentid)
   {
@@ -448,7 +432,14 @@ void threadFunction(void* arg)
   node_t* leafNode = findnode(realArgs->n, listNode->fileName);
   sem_post(&listSem);
 
-  char *decryptedFileLocation = decrypt(leafNode);
+  int inputFileExists = decrypt(leafNode);
+  if(inputFileExists == -1)
+  {
+    FILE *logFileEX = fopen(realArgs->n[0].logFile, "a");            //Change to a gettid() call
+    fprintf(logFileEX, "%s:%d:start\n", listNode->fileName, gettid());
+    fclose(logFileEX);
+    return -1;
+  }
   sem_wait(&memSem);
   char **Candidates;
   int CandidatesVotes[MAX_CANDIDATES];
@@ -463,7 +454,7 @@ void threadFunction(void* arg)
     CandidatesVotes[i] = 0;
   }
   sem_post(&memSem);
-  leafCounter(decryptedFileLocation, Candidates, CandidatesVotes);
+  leafCounter(leafNode->outputFileLocation, Candidates, CandidatesVotes);
   aggregateVotes(leafNode, realArgs->n, Candidates, CandidatesVotes);
   // pthread_mutex_lock(&listLock);
   FILE *logFile2 = fopen(realArgs->n[0].logFile, "a");            //Change to a gettid() call
@@ -481,10 +472,16 @@ int main(int argc, char **argv){
 		return -1;
 	}
 
+  char *cmd = NULL;
+  cmd = malloc(100);
+  strcpy(cmd, "rm -rf ");
+  strcat(cmd, argv[3]);
+  system(cmd);
+  free(cmd);
+
   DAGCreator(mainnodes, argv[1]);
   outputDirectoryCreator(mainnodes, argv[3]);
   inputDirectoryCreator(mainnodes, argv[2]);
-  //printgraph(mainnodes);
   int i = 0;
   while(mainnodes[i].name[0] != '\0')
   {
@@ -495,7 +492,6 @@ int main(int argc, char **argv){
     }
     i++;
   }
-
   list_t* head = NULL;
   head = malloc(sizeof(list_t));
   head->next = NULL;
@@ -505,7 +501,6 @@ int main(int argc, char **argv){
   strcat(logFile, "/log.txt");
   FILE *logFP = fopen(logFile, "w");
   fclose(logFP);
-  //printList(head);
   i = 0;
   while(mainnodes[i].name[0] != '\0')
   {
@@ -519,6 +514,8 @@ int main(int argc, char **argv){
   }
   sem_init(&listSem, 0, 1);
   sem_init(&memSem, 0, 1);
+  void *status = 0;;
+  int inputDirChecker = 0;
   pthread_t threads[numOfThreads];
   for(i = 0; i < numOfThreads; i++)
   {
@@ -529,7 +526,16 @@ int main(int argc, char **argv){
   }
   for(i = 0; i < numOfThreads; i++)
   {
-    pthread_join(threads[i], NULL);
+    pthread_join(threads[i], &status);
+    if((int)status == -1)
+    {
+      inputDirChecker++;
+    }
+  }
+  if(inputDirChecker == numOfThreads)
+  {
+    printf("error:input directory is empty\n");
+    return -1;
   }
   FILE *tempFp = fopen(mainnodes[0].outputFileLocation, "r");
   char *buffer = NULL;
