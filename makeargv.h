@@ -1,3 +1,8 @@
+/*kell1426
+*04/11/18
+*Daniel Kelly
+*4718021*/
+
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
